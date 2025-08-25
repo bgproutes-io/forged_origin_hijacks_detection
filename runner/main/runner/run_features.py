@@ -231,24 +231,24 @@ def run_features(asplist, date, db_dir, features, fn=None, store_results_in_db=F
 
     if 'bidirectionality' in features:
         start = time()
-        df["bidirectionality"] = run_bidir_features(asplist, date, db_dir, store_results_in_db, id=id, docker_name='dfoh_bidirectionality'+suffix_name)
+        df["bidirectionality"] = run_bidir_features(asplist, date, db_dir, store_results_in_db, fn, id=id, docker_name='dfoh_bidirectionality'+suffix_name)
         ut.wrn_msg("Bidirectionality feature took {:.2f} seconds".format(time() - start))
     
     if 'peeringdb' in features:
         start = time()
-        df["peeringdb"] = run_peeringdb_features(asplist, date, db_dir, store_results_in_db, id=id, docker_name='dfoh_peeringdb'+suffix_name, clean=peeringdb_clean)
+        df["peeringdb"] = run_peeringdb_features(asplist, date, db_dir, store_results_in_db, fn, id=id, docker_name='dfoh_peeringdb'+suffix_name, clean=peeringdb_clean)
         ut.wrn_msg("Peeringdb feature took {:.2f} seconds".format(time() - start))
     
     if 'topological' in features:
         start = time()
-        df["topological"] = run_topological_features(asplist, date, db_dir, store_results_in_db, id=id, docker_name='dfoh_topological'+suffix_name)
+        df["topological"] = run_topological_features(asplist, date, db_dir, store_results_in_db, fn, id=id, docker_name='dfoh_topological'+suffix_name)
         ut.wrn_msg("Topological feature took {:.2f} seconds".format(time() - start))
     
     if 'aspath' in features:
         start = time()
         ut.wrn_msg("ASpath input: ".format(time() - start))
 
-        df["aspath"] = run_aspath_features(asplist, date, db_dir, store_results_in_db, id=id, docker_name='dfoh_aspath'+suffix_name)
+        df["aspath"] = run_aspath_features(asplist, date, db_dir, store_results_in_db, fn, id=id, docker_name='dfoh_aspath'+suffix_name)
         ut.wrn_msg("ASpath feature took {:.2f} seconds".format(time() - start))
     
     feat_available = []
