@@ -86,7 +86,7 @@ python3 build_results_db.py
 ```
 
 Below is the database architecture:
-![Architecture Overview](edr_dfoh_db.png)
+![Architecture Overview](edr_dfoh_db.jpeg)
 
 ### 4. Enable PostgreSQL Access from Local Docker Containers
 
