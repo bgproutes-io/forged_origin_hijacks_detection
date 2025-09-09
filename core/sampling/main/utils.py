@@ -234,7 +234,7 @@ def get_clusters_for_date(date, db_dir, topo, topo_irr, n_start=20):
         df["asn"] = asns
         df = delete_tier_one(df)
 
-        model = KMeans(n_clusters=n_start)
+        model = KMeans(n_clusters=n_start, n_init="auto")
         clustering = model.fit(df.drop(columns=["asn"]))
         df["label"] = clustering.labels_
 
