@@ -316,7 +316,7 @@ class NewEdgeFinder:
 @click.option('--max_vps_per_newedge', default=10, help='Maximum number of vantage points per new edge to collect AS paths.', type=int)
 @click.option('--max_workers', default=1, help='Maximum number of workers when downloading the updates.', type=int)
 @click.option('--db_dir', default="db", help='Directory where is database.', type=str)
-@click.option('--store_results_in_db', default=True, help='If True, store results in the PostgreSQL db.', type=str)
+@click.option('--store_results_in_db', default=True, help='If True, store results in the PostgreSQL db.', type=bool)
 @click.option('--store_results_in_file', default=False, help='If True, store results in the files.', type=bool)
 
 def compute_new_edge(\
