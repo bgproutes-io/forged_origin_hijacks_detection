@@ -12,8 +12,7 @@ class CollectRibs:
         self.max_workers = max_workers
 
         # Get list of vantage points with MVP.
-        self.vps_set = vantage_points(source=["ris", "routeviews", "bgproutes.io", "pch", "cgtf"])
-        self.vps_ips = [vp['ip'] for vp in self.vps_set if bool(vp['is_active'])]
+        self.vps_set = vantage_points(sources=["ris", "routeviews", "bgproutes.io", "pch", "cgtf"])
 
     def print_prefix(self):
         return Fore.CYAN+Style.BRIGHT+"[collect_ribs.py]: "+Style.NORMAL
@@ -30,14 +29,18 @@ class CollectRibs:
         return ixps
 
     def build_snapshot(self, date_str: str=None, ixp_file:str=None, outfile: str=None, outfile_paths: str=None, vp_ips_batch_size: int=10):
+        print(self.print_prefix() + '{}: Building RIB snapshot from bgproutes.io'.format(date_str))
+        
         allpaths = set()
         all_links = set()
 
         # Load IXP ASN file.
         ases_to_ignore = list(self.get_ixps(ixp_file))
 
-        for i in range(0, len(self.vps_ips), vp_ips_batch_size):
-            batch = self.vps_ips[i:i + vp_ips_batch_size]
+        for i in range(0, len(self.vps_set), vp_ips_batch_size):
+            print(f"{self.print_prefix()} Processing batch {i // vp_ips_batch_size + 1} of VPs...")
+            batch = self.vps_set[i:i + vp_ips_batch_size]
+            batch = [vp for vp in batch if vp.is_active]
             try:
                 topo = topology(batch, date_str, with_aspath=True, with_rib=True, with_updates=False, as_to_ignore=ases_to_ignore, ignore_private_asns=True)
                 # Normalize links as tuples of integers
@@ -46,7 +49,7 @@ class CollectRibs:
                 for aspath in topo['aspaths']:
                     allpaths.add(aspath)
             except Exception as e:
-                print(f"{self.print_prefix()} Error processing batch {i // vp_ips_batch_size + 1}: {e} ({topo})")
+                print(f"{self.print_prefix()} Error processing batch {i // vp_ips_batch_size + 1}: {e}")
 
         print(f"{self.print_prefix()} {date_str}: Topology size: {len(all_links)} links, {len(allpaths)} unique AS paths")
         

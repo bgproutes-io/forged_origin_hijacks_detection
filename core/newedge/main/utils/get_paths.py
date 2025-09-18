@@ -2,7 +2,7 @@ import os
 from concurrent import futures
 from datetime import datetime
 
-from pybgproutesapi import updates, topology
+from pybgproutesapi import updates, topology, vantage_points
 from utils.cleaning import remove_asprepending
 
 from colorama import Fore
@@ -10,67 +10,67 @@ from colorama import Style
 from colorama import init
 init(autoreset=True)
 
-def process_vp(mapping_newedges_to_vps, ixp_set, ts_start, ts_end):
+def process_vps_chunk(mapping_newedges_to_vps, ixp_set, ts_start, ts_end):
     edge_paths = {e: {} for edges_subset in mapping_newedges_to_vps.values() for e in edges_subset}
+    identifier = next(iter(mapping_newedges_to_vps), "N/A")
 
+    print(f"{Fore.YELLOW}[{datetime.now()}] Start collecting aspaths ({identifier}) {Style.RESET_ALL}")
     for vp_ip, edges_subset in mapping_newedges_to_vps.items():
-        # Retrieve all the AS paths containing the new edges seen by the vantage point.
-        all_aspaths = set()
         try:
-            topo = topology([vp_ip], ts_start.strftime("%Y-%m-%d"), with_aspath=True, with_rib=False, with_updates=True)
+            vp = vantage_points(vp_ips=vp_ip)  # one call per VP
+            topo = topology(vps=vp,
+                            date=ts_start.strftime("%Y-%m-%d"),
+                            with_aspath=True, with_rib=False, with_updates=True,
+                            as_to_ignore=ixp_set, ignore_private_asns=True)
         except Exception as e:
-            print(f"{Fore.RED}[{datetime.now()}] Error {e} when retrieving topology for Vantage Point {vp_ip}) {Style.RESET_ALL}")
+            print(f"{Fore.RED}[{datetime.now()}] Error {e} when retrieving topology for VP {vp_ip} {Style.RESET_ALL}")
             continue
+
+        # Collect this VP's AS paths that touch watched edges
+        aspaths = set()
         for aspath_str in topo['aspaths']:
             aspath = [int(x) for x in aspath_str.split()]
-            aspath = remove_asprepending(aspath, ixp_set)
-            if aspath is not None:
-                for k in range(0, len(aspath)-1):
-                    if (aspath[k], aspath[k+1]) in edges_subset:
-                        all_aspaths.add(aspath_str)
-                    if (aspath[k+1], aspath[k]) in edges_subset:
-                        all_aspaths.add(aspath_str)
-            else:
-                print(f'AS path {aspath} is none in topo for VP {vp_ip}.')
+            for k in range(len(aspath)-1):
+                if ((aspath[k], aspath[k+1]) in edges_subset) or ((aspath[k+1], aspath[k]) in edges_subset):
+                    aspaths.add(aspath_str)
+                    break
 
-        # Get all the updates with the AS paths
-        try:
-            vp_updates = updates(
-                vp_ip=vp_ip,
-                start_date=ts_start.strftime("%Y-%m-%dT%H:%M:%S"),
-                end_date=ts_end.strftime("%Y-%m-%dT%H:%M:%S"),
-                type_filter='A',
-                return_community=False,
-                return_aspath=True,
-                aspath_exact_match=list(all_aspaths)
-            )
-        except Exception as e:
-            print(f"{Fore.RED}[{datetime.now()}] Error {e} when retrieving updates for Vantage Point {vp_ip}) {Style.RESET_ALL}")
-            continue
-                    
-        for upd in vp_updates:
-            aspath_str = upd[3]
-            aspath = [int(x) for x in aspath_str.split()]
-            aspath = remove_asprepending(aspath, ixp_set)
-            if aspath is not None:
-                aspath_str = ' '.join(str(x) for x in aspath)
-                timestamp = int(upd[0])
-                prefix = upd[2]
-                vp_asn = aspath[0]
-                for j in range(0, len(aspath)-1):
-                    if (aspath[j], aspath[j+1]) in edges_subset:
-                        if aspath_str not in edge_paths[(aspath[j], aspath[j+1])]:
-                            edge_paths[(aspath[j], aspath[j+1])][aspath_str] = (timestamp, prefix, vp_ip, vp_asn)
-                        # We only keep the route observed first.
-                        elif edge_paths[(aspath[j], aspath[j+1])][aspath_str][0] > timestamp:
-                            edge_paths[(aspath[j], aspath[j+1])][aspath_str] = (timestamp, prefix, vp_ip, vp_asn)
-                    if (aspath[j+1], aspath[j]) in edges_subset:
-                        if aspath_str not in edge_paths[(aspath[j+1], aspath[j])]:
-                            edge_paths[(aspath[j+1], aspath[j])][aspath_str] = (timestamp, prefix, vp_ip, vp_asn)
-                        # We only keep the route observed first.
-                        elif edge_paths[(aspath[j+1], aspath[j])][aspath_str][0] > timestamp:
-                            edge_paths[(aspath[j+1], aspath[j])][aspath_str] = (timestamp, prefix, vp_ip, vp_asn)
+        # Chunk per VP if >20k
+        aspaths_list = list(aspaths)
+        for i in range(0, len(aspaths_list), 20000):
+            chunk = aspaths_list[i:i+20000]
+            if not chunk:
+                continue
+            try:
+                data = updates(
+                    vps=vp,
+                    start_date=ts_start.strftime("%Y-%m-%dT%H:%M:%S"),
+                    end_date=ts_end.strftime("%Y-%m-%dT%H:%M:%S"),
+                    type_filter='A',
+                    return_community=False,
+                    return_aspath=True,
+                    aspath_exact_match=chunk
+                )
+            except Exception as e:
+                print(f"{Fore.RED}[{datetime.now()}] Error {e} when retrieving updates for VP {vp_ip} {Style.RESET_ALL}")
+                continue
 
+            for updates_batch in data.get('bgp', {}).values():
+                for upd in updates_batch:
+                    aspath_str = upd[3]
+                    aspath = remove_asprepending([int(x) for x in aspath_str.split()], ixp_set)
+                    if aspath is None:
+                        continue
+                    aspath_str = ' '.join(map(str, aspath))
+                    ts, prefix, vp_asn = int(upd[0]), upd[2], aspath[0]
+                    for j in range(len(aspath) - 1):
+                        for edge in ((aspath[j], aspath[j+1]), (aspath[j+1], aspath[j])):
+                            if edge in edges_subset:
+                                cur = edge_paths[edge].get(aspath_str)
+                                if cur is None or cur[0] > ts:
+                                    edge_paths[edge][aspath_str] = (ts, prefix, vp_ip, vp_asn)
+
+    print(f"{Fore.GREEN}[{datetime.now()}] Finished collecting updates ({identifier}) {Style.RESET_ALL}")
     return edge_paths
 
 class GetPath:
@@ -95,7 +95,7 @@ class GetPath:
     
     def collect_paths(self, ts_start: datetime, ts_end: datetime, ixp_file: str, mapping_newedges_to_vps: dict=None):
         # Load IXP ASN file.
-        ixp_set = self.get_ixps(ixp_file)
+        ixp_set = list(self.get_ixps(ixp_file))
         
         # Split the new mapping into {nb_processes} chunks for parallel processing.
         chunk_size = len(mapping_newedges_to_vps) // self.max_workers + 1
@@ -108,7 +108,7 @@ class GetPath:
         
         # Parallel processing of vantage points to collect prefixes
         with futures.ProcessPoolExecutor(max_workers=len(mapping_newedges_to_vps_chunks)) as executor:
-            futures_list = [executor.submit(process_vp, mapping_newedges_to_vps_chunks[i], ixp_set, ts_start, ts_end) for i in range(len(mapping_newedges_to_vps_chunks))]
+            futures_list = [executor.submit(process_vps_chunk, mapping_newedges_to_vps_chunks[i], ixp_set, ts_start, ts_end) for i in range(len(mapping_newedges_to_vps_chunks))]
             for future in futures_list:
                 edge_paths_chunk = future.result()
                 for e, paths in edge_paths_chunk.items():

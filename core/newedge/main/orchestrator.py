@@ -208,15 +208,14 @@ class NewEdgeFinder:
                     as2 = int(row[1])
                     if not topo_before.has_edge(as1, as2):
                         topo_after.add_edge(as1, as2)
-                        if len(new_edges_added) <= 200 or (as1, as2) in new_edges_added:
-                            if row[2] not in mapping_newedges_to_vps:
-                                mapping_newedges_to_vps[row[2]] = set()
-                            mapping_newedges_to_vps[row[2]].add((as1, as2))
-                            new_edges_added.add((as1, as2))
+                        if row[2] not in mapping_newedges_to_vps:
+                            mapping_newedges_to_vps[row[2]] = set()
+                        mapping_newedges_to_vps[row[2]].add((as1, as2))
+                        new_edges_added.add((as1, as2))
 
-                            if (as1, as2) not in mapping_vps_to_newedges:
-                                mapping_vps_to_newedges[(as1, as2)] = set()
-                            mapping_vps_to_newedges[(as1, as2)].add(row[2])
+                        if (as1, as2) not in mapping_vps_to_newedges:
+                            mapping_vps_to_newedges[(as1, as2)] = set()
+                        mapping_vps_to_newedges[(as1, as2)].add(row[2])
 
         start = time.time()
         vps_subset = self.get_vps_subset(mapping_vps_to_newedges)
