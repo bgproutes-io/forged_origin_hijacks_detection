@@ -73,7 +73,8 @@ class Orchestrator:
         # Check if the RIB topo is not yet in the DB.
         if not os.path.isfile(rib_file) or not os.path.isfile(allpaths_file) or override: 
             cr = CollectRibs(nb_vps=nb_vps, max_workers=max_workers_rib)
-            cr.build_snapshot(month_first_day.strftime("%Y-%m-%dT%H:%M:%S"), \
+            # cr.build_snapshot(month_first_day.strftime("%Y-%m-%dT%H:%M:%S"), \
+            cr.build_snapshot(ts, \
                                              ixp_file=ixp_file, \
                                              outfile=rib_file, \
                                              outfile_paths=allpaths_file)
