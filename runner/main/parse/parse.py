@@ -2,7 +2,7 @@ import os
 from os import listdir
 from os.path import isfile, join
 from datetime import datetime
-import psycopg
+import psycopg2
 import pytricia
 import pandas as pd
 
@@ -43,7 +43,7 @@ class Parser:
         self.new_edge_origin = {}
 
         if self.results_db_config:
-            conn = psycopg.connect(**self.results_db_config)
+            conn = psycopg2.connect(**self.results_db_config)
             with conn.cursor() as cur:
                 cur.execute("""
                     SELECT asn1, asn2, as_path, is_recurrent, prefix, peer_ip, peer_asn, is_recurrent
@@ -226,7 +226,7 @@ class Parser:
 
         # Prepare file and database connections outside the loop
         fd_out = None
-        conn = None
+        conn :psycopg2.extensions.connection = None
         cursor = None
 
         try:
@@ -237,7 +237,7 @@ class Parser:
             
             # Setup database connection if needed
             if self.results_db_config:
-                conn = psycopg.connect(**self.results_db_config)
+                conn = psycopg2.connect(**self.results_db_config)
                 cursor = conn.cursor()
             
             # Single loop through dic_res
@@ -245,11 +245,15 @@ class Parser:
                 sus = 0
                 leg = 0
                 asp_count = 0
+                confidence_level = [0]
                 
                 # Calculate statistics once per edge pair
                 for sensitivity in dic_res[(as1, as2)]:
                     count_0 = dic_res[(as1, as2)][sensitivity].count(0)
                     count_1 = dic_res[(as1, as2)][sensitivity].count(1)
+
+                    if count_1:
+                        confidence_level.append(int(sensitivity))
                     
                     if count_0 > count_1:
                         leg += 1
@@ -292,8 +296,8 @@ class Parser:
                     cursor.execute("""
                         INSERT INTO inference_summary (
                             asn1, asn2, classification, num_legit_inf, num_susp_inf, num_paths,
-                            attackers, victims, hijack_types, is_origin_rpki_valid, is_recurrent, is_local
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            attackers, victims, hijack_types, is_origin_rpki_valid, is_recurrent, is_local, observed_at, confidence_level
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
                     """, (
                         int(as1), int(as2), 'sus' if sus > 0 else 'leg', leg, sus, asp_count,
@@ -302,7 +306,9 @@ class Parser:
                         [int(hijack_type) for hijack_type in dic_tags[(as1, as2)]['type']],
                         bool(list(dic_tags[(as1, as2)]['valid_origin'])[0]),
                         bool(list(dic_tags[(as1, as2)]['recurrent'])[0]),
-                        bool(list(dic_tags[(as1, as2)]['local'])[0])
+                        bool(list(dic_tags[(as1, as2)]['local'])[0]),
+                        self.date.strftime("%Y-%m-%d"),
+                        max(confidence_level)
                     ))
                     
                     inference_id = cursor.fetchone()[0]
@@ -322,13 +328,13 @@ class Parser:
                     # Update new_link table
                     cursor.execute("""
                         UPDATE new_link
-                        SET inference_id = %s
+                        SET inference_id = %s, confidence_level = %s
                         WHERE (
                             (asn1 = %s AND asn2 = %s) OR
                             (asn1 = %s AND asn2 = %s)
                         )
                         AND DATE(observed_at) = %s
-                    """, (inference_id, int(as1), int(as2), int(as2), int(as1), self.date.strftime("%Y-%m-%d")))
+                    """, (inference_id, max(confidence_level), int(as1), int(as2), int(as2), int(as1), self.date.strftime("%Y-%m-%d")))
             
             # Commit database changes
             if conn:

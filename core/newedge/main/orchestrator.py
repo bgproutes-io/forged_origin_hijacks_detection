@@ -35,8 +35,12 @@ class NewEdgeFinder:
         if not os.path.isdir(self.db_dir+'/'+self.prefix_dir):
             os.mkdir(self.db_dir+'/'+self.prefix_dir)
 
+
+
     def print_prefix():
         return Fore.WHITE+Style.BRIGHT+"[NewEdgeFinder]: "+Style.NORMAL
+
+
 
     def get_ixp_filename(self, date):
         # Find the ixp list file correponding to the date.
@@ -55,10 +59,14 @@ class NewEdgeFinder:
         dateixp.replace(month=month_nb)
         return self.db_dir+'/peeringdb/'+dateixp.strftime("%Y-%m-%d")+"_ixplist.txt"
 
+
+
     # Helper function to iterate between two dates.
     def daterange(start_date, end_date):
         for n in range(int((end_date - start_date).days)):
             yield start_date + timedelta(n)
+
+
 
     def get_vps_subset(self, mapping_vps_to_newedges):
         vps_subset = set()
@@ -107,6 +115,7 @@ class NewEdgeFinder:
                 del new_tmp_mapping[newedge]
 
         return vps_subset
+
 
 
     def compute_new_edge(self, datestr: str, nbdays: int):
@@ -308,6 +317,7 @@ class NewEdgeFinder:
                 file_fd.close()
             if conn:
                 conn.close()
+
 
 
 # Make the CLI.

@@ -1,4 +1,4 @@
-import psycopg
+import psycopg2
 from dotenv import load_dotenv
 import os
 
@@ -12,7 +12,7 @@ DB_HOST = os.getenv("DFOH_DB_HOST", "localhost")
 DB_PORT = os.getenv("DFOH_DB_PORT", "5432")
 
 def create_tables():
-    conn = psycopg.connect(
+    conn = psycopg2.connect(
         dbname=DB_NAME,
         user=DB_USER,
         password=DB_PASSWORD,
@@ -29,6 +29,7 @@ def create_tables():
             asn1 BIGINT NOT NULL,
             asn2 BIGINT NOT NULL,
             classification VARCHAR(3) NOT NULL,
+            confidence_level SMALLINT NOT NULL,
             num_legit_inf INT NOT NULL,
             num_susp_inf INT NOT NULL,
             num_paths INT NOT NULL,
@@ -37,6 +38,7 @@ def create_tables():
             hijack_types INT[] NOT NULL,
             is_origin_rpki_valid BOOLEAN NOT NULL,
             is_recurrent BOOLEAN NOT NULL,
+            observed_at TIMESTAMP NOT NULL,
             is_local BOOLEAN NOT NULL
         );
     """)
